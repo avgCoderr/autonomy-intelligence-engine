@@ -168,13 +168,7 @@ def score_article(title, domain, conn, boosted_companies, boosted_keywords):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def is_recent(entry):
-    for attr in ["published_parsed", "updated_parsed"]:
-        parsed = getattr(entry, attr, None)
-        if parsed:
-            published = datetime(*parsed[:6], tzinfo=timezone.utc)
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENCY_HOURS)
-            return published >= cutoff
-    return False  # if no date at all, skip it
+    return True
 
 def get_domain(url):
     try:
