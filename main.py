@@ -1,7 +1,7 @@
 import os
 import requests
 import feedparser
-from datetime import datetime
+from datetime import datetime, timezone
 
 NOTION_API_KEY = os.environ["NOTION_API_KEY"]
 NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
@@ -48,7 +48,7 @@ def send_to_notion(title, url, bucket, category):
     data = {
         "parent": {"database_id": NOTION_DATABASE_ID},
         "properties": {
-            "Name": {
+            "Title": {
                 "title": [{"text": {"content": title}}]
             },
             "URL": {
@@ -61,7 +61,7 @@ def send_to_notion(title, url, bucket, category):
                 "select": {"name": category}
             },
             "Date Added": {
-                "date": {"start": datetime.utcnow().isoformat()}
+                "date": {"start": datetime.now(timezone.utc).isoformat()}
             }
         }
     }
