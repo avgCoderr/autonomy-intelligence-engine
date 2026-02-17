@@ -290,3 +290,6 @@ def main():
     conn.close()
     print(f"\nDONE. {len(top)} articles pushed.")
     print("=" * 60)
+
+if __name__ == "__main__":
+    main()
