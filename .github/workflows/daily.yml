@@ -26,6 +26,7 @@ jobs:
           echo "Files in directory:"
           ls -la
           echo "Running script..."
+          python -c "import ast; ast.parse(open('main.py').read()); print('Syntax OK')"
           python main.py
 
       - name: Commit memory DB
