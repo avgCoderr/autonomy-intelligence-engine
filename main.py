@@ -212,30 +212,14 @@ def send_to_notion(title, url, bucket, category, score, source):
     data = {
         "parent": {"database_id": NOTION_DATABASE_ID},
         "properties": {
-            "Title": {
-                "title": [{"text": {"content": title}}]
-            },
-            "URL": {
-                "url": url
-            },
-            "Bucket": {
-                "select": {"name": bucket}
-            },
-            "Category": {
-                "select": {"name": category}
-            },
-            "Date Added": {
-                "date": {"start": datetime.now(timezone.utc).isoformat()}
-            },
-            "Relevance Score": {
-                "number": score
-            },
-            "Source": {
-                "rich_text": [{"text": {"content": source}}]
-            },
-            "Useful": {
-                "checkbox": False
-            }
+            "Title": {"title": [{"text": {"content": title}}]},
+            "URL": {"url": url},
+            "Bucket": {"select": {"name": bucket}},
+            "Category": {"select": {"name": category}},
+            "Date Added": {"date": {"start": datetime.now(timezone.utc).isoformat()}},
+            "Relevance Score": {"number": score},
+            "Source": {"rich_text": [{"text": {"content": source}}]},
+            "Useful": {"checkbox": False}
         }
     }
     response = requests.post(
@@ -243,49 +227,64 @@ def send_to_notion(title, url, bucket, category, score, source):
         headers=headers,
         json=data
     )
-    print(f"[{response.status_code}] {title[:60]}... (score: {score})")
+    # Only print failures in full; successes are one line
+    if response.status_code != 200:
+        print(f"  ❌ FAILED [{response.status_code}]: {response.text}")
+    else:
+        print(f"  ✅ [{score}/10] {title[:70]}")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
+    print("=" * 60)
+    print(f"RUN STARTED: {datetime.now(timezone.utc).isoformat()}")
+    print("=" * 60)
+
     conn = init_db()
     boosted_companies, boosted_keywords = fetch_useful_patterns()
 
     candidates = []
+    stats = {"total": 0, "old": 0, "no_keyword": 0, "seen": 0}
 
     for feed_url in RSS_FEEDS:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries:
+            stats["total"] += 1
             title = entry.title
             link = entry.link
             domain = get_domain(link)
 
             if not is_recent(entry):
+                stats["old"] += 1
                 continue
             if not contains_movement_keyword(title):
+                stats["no_keyword"] += 1
                 continue
             if is_seen(conn, link):
+                stats["seen"] += 1
                 continue
 
             score = score_article(title, domain, conn, boosted_companies, boosted_keywords)
-            bucket = classify_company(title)
-            category = detect_category(title)
+            candidates.append((score, title, link, classify_company(title), detect_category(title), domain))
 
-            candidates.append((score, title, link, bucket, category, domain))
+    print(f"\nFETCH SUMMARY")
+    print(f"  Total entries seen : {stats['total']}")
+    print(f"  Skipped (too old)  : {stats['old']}")
+    print(f"  Skipped (keyword)  : {stats['no_keyword']}")
+    print(f"  Skipped (seen)     : {stats['seen']}")
+    print(f"  Candidates         : {len(candidates)}")
 
-    # Sort by score descending, take top N
     candidates.sort(key=lambda x: x[0], reverse=True)
     top = candidates[:MAX_ARTICLES]
 
+    print(f"\nPUSHING TOP {len(top)} TO NOTION")
     for score, title, link, bucket, category, domain in top:
         send_to_notion(title, link, bucket, category, score, domain)
         mark_seen(conn, link)
         update_source_count(conn, domain)
-        time.sleep(0.3)  # gentle rate limiting
+        time.sleep(0.3)
 
-    print(f"\nDone. {len(top)} articles pushed to Notion.")
     conn.close()
-
-if __name__ == "__main__":
-    main()
+    print(f"\nDONE. {len(top)} articles pushed.")
+    print("=" * 60)
