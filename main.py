@@ -239,6 +239,8 @@ def send_to_notion(title, url, bucket, category, score, source):
 def main():
     print("=" * 60)
     print(f"RUN STARTED: {datetime.now(timezone.utc).isoformat()}")
+    db_id = NOTION_DATABASE_ID
+    print(f"DB ID length: {len(db_id)} | has dashes: {'-' in db_id}")
     print("=" * 60)
 
     conn = init_db()
