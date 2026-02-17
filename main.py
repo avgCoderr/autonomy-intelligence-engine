@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 NOTION_API_KEY = os.environ["NOTION_API_KEY"]
 NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
 
-MAX_ARTICLES = 15
+MAX_ARTICLES = 20
 RECENCY_HOURS = 48
 
 MOVEMENT_KEYWORDS = [
@@ -168,11 +168,13 @@ def score_article(title, domain, conn, boosted_companies, boosted_keywords):
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def is_recent(entry):
-    if not hasattr(entry, "published_parsed") or entry.published_parsed is None:
-        return False
-    published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENCY_HOURS)
-    return published >= cutoff
+    for attr in ["published_parsed", "updated_parsed"]:
+        parsed = getattr(entry, attr, None)
+        if parsed:
+            published = datetime(*parsed[:6], tzinfo=timezone.utc)
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENCY_HOURS)
+            return published >= cutoff
+    return False  # if no date at all, skip it
 
 def get_domain(url):
     try:
