@@ -48,7 +48,7 @@ def send_to_notion(title, url, bucket, category):
     data = {
         "parent": {"database_id": NOTION_DATABASE_ID},
         "properties": {
-            "Title": {
+            "Name": {
                 "title": [{"text": {"content": title}}]
             },
             "URL": {
