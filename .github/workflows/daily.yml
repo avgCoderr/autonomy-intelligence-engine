@@ -28,6 +28,6 @@ jobs:
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
-          git add memory.db
+          git add memory.db || true
           git diff --staged --quiet || git commit -m "Update memory.db"
-          git push
+          git push || true
