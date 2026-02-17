@@ -22,7 +22,11 @@ jobs:
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
-        run: python main.py
+        run: |
+          echo "Files in directory:"
+          ls -la
+          echo "Running script..."
+          python main.py
 
       - name: Commit memory DB
         run: |
