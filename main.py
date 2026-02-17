@@ -5,8 +5,8 @@ import sqlite3
 import time
 from datetime import datetime, timezone, timedelta
 
-NOTION_API_KEY = os.environ["NOTION_API_KEY"]
-NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
+NOTION_API_KEY = os.environ.get("NOTION_API_KEY", "MISSING")
+NOTION_DATABASE_ID = os.environ.get("NOTION_DATABASE_ID", "MISSING")
 
 MAX_ARTICLES = 20
 RECENCY_HOURS = 48
