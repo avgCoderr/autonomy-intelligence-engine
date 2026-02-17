@@ -1,5 +1,4 @@
 name: Daily Autonomy Intelligence
-
 on:
   schedule:
     - cron: "30 7 * * *"
@@ -8,7 +7,6 @@ on:
 jobs:
   run-script:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -18,11 +16,18 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: |
-          pip install requests feedparser
+        run: pip install requests feedparser
 
       - name: Run script
         env:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         run: python main.py
+
+      - name: Commit memory DB
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add memory.db
+          git diff --staged --quiet || git commit -m "Update memory.db"
+          git push
