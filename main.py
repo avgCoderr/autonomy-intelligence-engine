@@ -1,8 +1,10 @@
 import os
+import re
 import requests
 import feedparser
 import sqlite3
 import time
+from calendar import timegm
 from datetime import datetime, timezone, timedelta
 
 NOTION_API_KEY = os.environ.get("NOTION_API_KEY", "MISSING")
@@ -32,6 +34,45 @@ RSS_FEEDS = [
     "https://news.google.com/rss/search?q=LiDAR+production+contract+automotive",
     "https://news.google.com/rss/search?q=Humanoid+robot+commercial+deployment"
 ]
+
+# ─── Pre-compiled Matching ────────────────────────────────────────────────────
+# Built once at module load. Single words → sets, phrases → super regex.
+
+def _build_phrase_regex(terms):
+    phrases = [re.escape(t) for t in terms if ' ' in t]
+    if not phrases:
+        return None
+    return re.compile(r'\b(' + '|'.join(phrases) + r')\b', re.IGNORECASE)
+
+MOVEMENT_SET        = {k.lower() for k in MOVEMENT_KEYWORDS if ' ' not in k}
+MOVEMENT_PHRASE_RE  = _build_phrase_regex(MOVEMENT_KEYWORDS)
+
+COMPANY_SET         = {c.lower() for c in KNOWN_COMPANIES if ' ' not in c}
+COMPANY_PHRASE_RE   = _build_phrase_regex(KNOWN_COMPANIES)
+
+
+# ─── Dynamic Score Ceiling ────────────────────────────────────────────────────
+
+def compute_max_score(boosted_companies, boosted_keywords):
+    """
+    Computes the theoretical maximum score based on current lists.
+    Self-adjusts as MOVEMENT_KEYWORDS, KNOWN_COMPANIES, and feedback lists grow.
+    Assumes every keyword and company hits in both title and full text.
+    """
+    movement_single  = len(MOVEMENT_SET)
+    movement_phrases = len([k for k in MOVEMENT_KEYWORDS if ' ' in k])
+
+    company_single   = len(COMPANY_SET)
+    company_phrases  = len([c for c in KNOWN_COMPANIES if ' ' in c])
+
+    movement_score  = (movement_single + movement_phrases) * 2  # full text + title bonus
+    company_score   = (company_single + company_phrases) * 2    # × 2 weight
+    boost_companies = len(boosted_companies) * 3
+    boost_keywords  = len(boosted_keywords) * 2
+    source_boost    = 3
+
+    return movement_score + company_score + boost_companies + boost_keywords + source_boost
+
 
 # ─── SQLite Memory ────────────────────────────────────────────────────────────
 
@@ -76,13 +117,13 @@ def update_source_count(conn, domain):
     conn.commit()
 
 def get_source_boost(conn, domain):
-    """Returns a small boost (0.0–1.0) for sources that historically had useful articles."""
+    """Returns a boost (0.0–1.0) for sources that historically had useful articles."""
     c = conn.cursor()
     c.execute("SELECT useful_count, total_count FROM source_scores WHERE domain = ?", (domain,))
     row = c.fetchone()
     if not row or row[1] == 0:
         return 0.0
-    return row[0] / row[1]  # useful rate
+    return row[0] / row[1]
 
 
 # ─── Notion Feedback Loop ─────────────────────────────────────────────────────
@@ -114,12 +155,12 @@ def fetch_useful_patterns():
 
     results = response.json().get("results", [])
     boosted_companies = set()
-    boosted_keywords = set()
+    boosted_keywords  = set()
 
     for page in results:
-        title_prop = page.get("properties", {}).get("Title", {})
+        title_prop  = page.get("properties", {}).get("Title", {})
         title_parts = title_prop.get("title", [])
-        title = "".join(t.get("plain_text", "") for t in title_parts).lower()
+        title       = "".join(t.get("plain_text", "") for t in title_parts).lower()
 
         for company in KNOWN_COMPANIES:
             if company.lower() in title:
@@ -135,41 +176,52 @@ def fetch_useful_patterns():
 
 # ─── Scoring ──────────────────────────────────────────────────────────────────
 
-def score_article(title, domain, conn, boosted_companies, boosted_keywords):
+def score_article(title, summary, domain, conn, boosted_companies, boosted_keywords):
+    title_text = title.lower()
+    full_text  = f"{title_text} {summary.lower()}"
+
+    # Tokenize once — sets deduplicate repeated words naturally
+    title_tokens = set(re.findall(r'\w+', title_text))
+    full_tokens  = set(re.findall(r'\w+', full_text))
+
     score = 0
-    text = title.lower()
 
-    # Base keyword hits
-    for kw in MOVEMENT_KEYWORDS:
-        if kw in text:
-            score += 1
+    # ── 1. Movement keywords ─────────────────────────────────────────────────
+    # Single words: set intersection — word-boundary safe, O(1) per word
+    score += len(full_tokens.intersection(MOVEMENT_SET))
+    score += len(title_tokens.intersection(MOVEMENT_SET))   # title bonus
 
-    # Known company hit
-    for company in KNOWN_COMPANIES:
-        if company.lower() in text:
-            score += 2
+    # Multi-word phrases: one regex pass, deduplicated via set
+    if MOVEMENT_PHRASE_RE:
+        score += len(set(MOVEMENT_PHRASE_RE.findall(full_text)))
+        score += len(set(MOVEMENT_PHRASE_RE.findall(title_text)))
 
-    # Feedback loop boosts
-    for company in boosted_companies:
-        if company in text:
-            score += 3  # extra weight for your historically useful companies
+    # ── 2. Known companies ───────────────────────────────────────────────────
+    score += len(full_tokens.intersection(COMPANY_SET)) * 2
+
+    if COMPANY_PHRASE_RE:
+        score += len(set(COMPANY_PHRASE_RE.findall(full_text))) * 2
+
+    # ── 3. Feedback loop boosts (dynamic — word boundaries via re.search) ───
+    for b_company in boosted_companies:
+        if re.search(r'\b' + re.escape(b_company) + r'\b', full_text, re.IGNORECASE):
+            score += 3
 
     for kw in boosted_keywords:
-        if kw in text:
+        if kw in full_tokens:
             score += 2
 
-    # Source quality boost (0–3 points)
+    # ── 4. Source quality boost (0–3 points) ────────────────────────────────
     source_boost = get_source_boost(conn, domain)
     score += round(source_boost * 3)
 
-    return min(score, 10)  # cap at 10
+    return score  # raw, uncapped — ceiling computed dynamically per run
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
-
-from calendar import timegm
+# ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def is_recent(entry, cutoff):
+    """Returns True if the article was published at or after the cutoff timestamp."""
     parsed = getattr(entry, 'published_parsed', None) or getattr(entry, 'updated_parsed', None)
     if parsed is None:
         return False
@@ -183,8 +235,13 @@ def get_domain(url):
         return "unknown"
 
 def contains_movement_keyword(text):
-    text = text.lower()
-    return any(keyword in text for keyword in MOVEMENT_KEYWORDS)
+    """Gate check — uses same set/regex logic as scorer for consistency."""
+    tokens = set(re.findall(r'\w+', text.lower()))
+    if tokens.intersection(MOVEMENT_SET):
+        return True
+    if MOVEMENT_PHRASE_RE and MOVEMENT_PHRASE_RE.search(text):
+        return True
+    return False
 
 def classify_company(text):
     for company in KNOWN_COMPANIES:
@@ -227,11 +284,10 @@ def send_to_notion(title, url, bucket, category, score, source):
         headers=headers,
         json=data
     )
-    # Only print failures in full; successes are one line
     if response.status_code != 200:
         print(f"  ❌ FAILED [{response.status_code}]: {response.text}")
     else:
-        print(f"  ✅ [{score}/10] {title[:70]}")
+        print(f"  ✅ [{score}] {title[:70]}")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -246,17 +302,22 @@ def main():
     conn = init_db()
     boosted_companies, boosted_keywords = fetch_useful_patterns()
 
+    # Dynamic ceiling — self-adjusts as lists grow
+    max_score = compute_max_score(boosted_companies, boosted_keywords)
+    print(f"Dynamic score ceiling this run: {max_score}")
+
     candidates = []
     stats = {"total": 0, "old": 0, "no_keyword": 0, "seen": 0}
 
+    # Compute once — every article evaluated against the same cutoff
     cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENCY_HOURS)
 
     for feed_url in RSS_FEEDS:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries:
             stats["total"] += 1
-            title = entry.title
-            link = entry.link
+            title  = entry.title
+            link   = entry.link
             domain = get_domain(link)
 
             if not is_recent(entry, cutoff):
@@ -269,7 +330,8 @@ def main():
                 stats["seen"] += 1
                 continue
 
-            score = score_article(title, domain, conn, boosted_companies, boosted_keywords)
+            summary = getattr(entry, 'summary', '') or ''
+            score   = score_article(title, summary, domain, conn, boosted_companies, boosted_keywords)
             candidates.append((score, title, link, classify_company(title), detect_category(title), domain))
 
     print(f"\nFETCH SUMMARY")
@@ -282,7 +344,7 @@ def main():
     candidates.sort(key=lambda x: x[0], reverse=True)
     top = candidates[:MAX_ARTICLES]
 
-    print(f"\nPUSHING TOP {len(top)} TO NOTION")
+    print(f"\nPUSHING TOP {len(top)} TO NOTION  (ceiling: {max_score})")
     for score, title, link, bucket, category, domain in top:
         send_to_notion(title, link, bucket, category, score, domain)
         mark_seen(conn, link)
