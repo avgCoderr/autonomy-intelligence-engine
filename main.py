@@ -14,26 +14,119 @@ MAX_ARTICLES = 20
 RECENCY_HOURS = 48
 
 MOVEMENT_KEYWORDS = [
+    # Current — keep all of these
     "production", "deployment", "commercial", "fleet",
     "contract", "partnership", "expansion",
-    "regulatory", "pilot", "validation", "funding"
+    "regulatory", "pilot", "validation", "funding",
+    # Acquisition signals
+    "acquisition", "acquires", "merger",
+    # Scale signals  
+    "launch", "launches", "rollout", "milestone", "scaling",
+    # Program signals
+    "program", "initiative", "announces",
+    # Data signals — highly specific to your business
+    "dataset", "annotation", "labeling",
+    # Investment signals
+    "raises", "investment", "Series"
 ]
 
 KNOWN_COMPANIES = [
-    "Continental", "Rivian", "Bosch", "Hyundai", "Honda",
-    "Nvidia", "Zendar", "Sony Honda Mobility", "Apple",
-    "Lightwheel", "AEVA", "Waymo", "Magna", "ZF",
-    "Valeo", "Aptiv", "Qualcomm", "Innoviz",
-    "Baidu", "Agibot", "Tesla",
-    "Boston Dynamics", "Figure", "Unitree", "Apptronik"
+    # Pure-play autonomy
+    "Waymo", "Mobileye", "Aurora", "Motional", "Zoox", "Cruise",
+    "Nuro", "Gatik", "Kodiak",
+    # LiDAR / sensor
+    "Innoviz", "Luminar", "Hesai", "Zendar", "AEVA",
+    # OEMs
+    "Toyota", "Hyundai", "Honda", "BMW", "Mercedes", "Volkswagen",
+    "GM", "Ford", "Rivian", "Stellantis", "Continental",
+    # Compute / silicon
+    "Nvidia", "Qualcomm",
+    # Tier 1 suppliers
+    "Bosch", "Aptiv", "Valeo", "ZF", "Magna",
+    # Robotics
+    "Boston Dynamics", "Figure", "Agility Robotics", "Apptronik",
+    "Unitree", "Sanctuary AI", "1X",
+    # APAC
+    "Baidu", "BYD", "Xpeng", "NIO", "Agibot",
+    # Other
+    "Tesla", "Apple", "Sony Honda Mobility", "Lightwheel"
 ]
 
-RSS_FEEDS = [
-    "https://news.google.com/rss/search?q=Level+3+autonomous+driving+production",
-    "https://news.google.com/rss/search?q=Level+4+autonomous+vehicle+deployment",
-    "https://news.google.com/rss/search?q=LiDAR+production+contract+automotive",
-    "https://news.google.com/rss/search?q=Humanoid+robot+commercial+deployment"
-]
+# ─── RSS Feed Generation ──────────────────────────────────────────────────────
+
+def build_rss_feeds():
+    """
+    Builds the full RSS feed list at runtime.
+    Uses current year dynamically — never hardcoded.
+    """
+    year = datetime.now(timezone.utc).year
+
+    return [
+
+        # ── Pure-play autonomy ────────────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Waymo+deployment+OR+contract+OR+funding+OR+fleet",
+        "https://news.google.com/rss/search?q=Mobileye+production+OR+contract+OR+partnership",
+        "https://news.google.com/rss/search?q=Aurora+autonomous+trucking+deployment+OR+contract",
+        "https://news.google.com/rss/search?q=Motional+robotaxi+deployment+OR+partnership",
+        "https://news.google.com/rss/search?q=Zoox+autonomous+vehicle+deployment+OR+fleet",
+        "https://news.google.com/rss/search?q=Cruise+autonomous+vehicle+OR+robotaxi+restart",
+        "https://news.google.com/rss/search?q=Nuro+autonomous+delivery+contract+OR+deployment",
+        "https://news.google.com/rss/search?q=Gatik+autonomous+trucking+contract+OR+deployment",
+        "https://news.google.com/rss/search?q=Kodiak+autonomous+trucking+contract+OR+funding",
+
+        # ── LiDAR / sensor suppliers ─────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Innoviz+LiDAR+production+OR+contract+OR+automotive",
+        "https://news.google.com/rss/search?q=Luminar+LiDAR+production+OR+contract+OR+OEM",
+        "https://news.google.com/rss/search?q=Hesai+LiDAR+automotive+production+OR+contract",
+
+        # ── OEMs ─────────────────────────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Toyota+autonomous+driving+OR+ADAS+deployment+OR+dataset",
+        "https://news.google.com/rss/search?q=Hyundai+autonomous+vehicle+OR+robotaxi+deployment",
+        "https://news.google.com/rss/search?q=BMW+autonomous+driving+OR+ADAS+production+OR+Level3",
+        "https://news.google.com/rss/search?q=Mercedes+autonomous+driving+OR+Level3+deployment",
+        "https://news.google.com/rss/search?q=Volkswagen+autonomous+driving+OR+ADAS+production",
+        "https://news.google.com/rss/search?q=GM+SuperCruise+OR+UltraCruise+autonomous+deployment",
+        "https://news.google.com/rss/search?q=Ford+BlueCruise+autonomous+ADAS+deployment+OR+contract",
+        "https://news.google.com/rss/search?q=Rivian+autonomous+ADAS+OR+driver+assistance+deployment",
+
+        # ── Compute / silicon ─────────────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Nvidia+autonomous+vehicle+OR+DRIVE+platform+contract",
+        "https://news.google.com/rss/search?q=Qualcomm+Snapdragon+automotive+ADAS+contract+OR+production",
+
+        # ── Tier 1 suppliers ─────────────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Bosch+ADAS+autonomous+driving+contract+OR+production",
+        "https://news.google.com/rss/search?q=Continental+autonomous+driving+OR+ADAS+contract+OR+deployment",
+        "https://news.google.com/rss/search?q=Aptiv+autonomous+driving+OR+ADAS+contract+OR+production",
+        "https://news.google.com/rss/search?q=Valeo+ADAS+autonomous+driving+contract+OR+production",
+        "https://news.google.com/rss/search?q=ZF+autonomous+driving+OR+ADAS+contract+OR+production",
+        "https://news.google.com/rss/search?q=Magna+autonomous+driving+OR+ADAS+contract+OR+production",
+
+        # ── Robotics ─────────────────────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Figure+humanoid+robot+commercial+OR+deployment+OR+contract",
+        "https://news.google.com/rss/search?q=Agility+Robotics+commercial+OR+deployment+OR+contract",
+        "https://news.google.com/rss/search?q=Boston+Dynamics+commercial+OR+deployment+OR+contract",
+        "https://news.google.com/rss/search?q=Apptronik+humanoid+robot+commercial+OR+deployment",
+        "https://news.google.com/rss/search?q=1X+humanoid+robot+commercial+OR+deployment+OR+funding",
+        "https://news.google.com/rss/search?q=Sanctuary+AI+humanoid+commercial+OR+deployment",
+
+        # ── APAC ─────────────────────────────────────────────────────────────
+        "https://news.google.com/rss/search?q=Baidu+Apollo+autonomous+driving+deployment+OR+contract",
+        "https://news.google.com/rss/search?q=BYD+autonomous+driving+OR+ADAS+deployment+OR+production",
+        "https://news.google.com/rss/search?q=Xpeng+autonomous+driving+OR+ADAS+deployment+OR+XNGP",
+        "https://news.google.com/rss/search?q=NIO+autonomous+driving+OR+ADAS+deployment+OR+NOP",
+        "https://news.google.com/rss/search?q=Agibot+humanoid+robot+commercial+OR+deployment",
+        "https://news.google.com/rss/search?q=Unitree+robot+commercial+OR+deployment+OR+contract",
+
+        # ── Topic signals — market-wide buying signals ────────────────────────
+        "https://news.google.com/rss/search?q=ADAS+data+annotation+OR+labeling+contract+OR+partnership",
+        "https://news.google.com/rss/search?q=autonomous+vehicle+training+data+OR+dataset+production",
+        f"https://news.google.com/rss/search?q=autonomous+driving+startup+funding+Series+{year}",
+        f"https://news.google.com/rss/search?q=humanoid+robot+funding+OR+commercial+deployment+{year}",
+        "https://news.google.com/rss/search?q=Level+3+OR+Level+4+autonomous+vehicle+production+deployment",
+        "https://news.google.com/rss/search?q=robotaxi+commercial+launch+OR+expansion+OR+fleet",
+
+    ]
+
 
 # ─── Pre-compiled Matching ────────────────────────────────────────────────────
 # Built once at module load. Single words → sets, phrases → super regex.
@@ -55,9 +148,8 @@ COMPANY_PHRASE_RE   = _build_phrase_regex(KNOWN_COMPANIES)
 
 def compute_max_score(boosted_companies, boosted_keywords):
     """
-    Computes the theoretical maximum score based on current lists.
+    Computes theoretical maximum score based on current lists.
     Self-adjusts as MOVEMENT_KEYWORDS, KNOWN_COMPANIES, and feedback lists grow.
-    Assumes every keyword and company hits in both title and full text.
     """
     movement_single  = len(MOVEMENT_SET)
     movement_phrases = len([k for k in MOVEMENT_KEYWORDS if ' ' in k])
@@ -187,11 +279,9 @@ def score_article(title, summary, domain, conn, boosted_companies, boosted_keywo
     score = 0
 
     # ── 1. Movement keywords ─────────────────────────────────────────────────
-    # Single words: set intersection — word-boundary safe, O(1) per word
     score += len(full_tokens.intersection(MOVEMENT_SET))
-    score += len(title_tokens.intersection(MOVEMENT_SET))   # title bonus
+    score += len(title_tokens.intersection(MOVEMENT_SET))       # title bonus
 
-    # Multi-word phrases: one regex pass, deduplicated via set
     if MOVEMENT_PHRASE_RE:
         score += len(set(MOVEMENT_PHRASE_RE.findall(full_text)))
         score += len(set(MOVEMENT_PHRASE_RE.findall(title_text)))
@@ -214,10 +304,6 @@ def score_article(title, summary, domain, conn, boosted_companies, boosted_keywo
     # ── 4. Source quality boost (0–3 points) ────────────────────────────────
     source_boost = get_source_boost(conn, domain)
     score += round(source_boost * 3)
-
-    print(f"  DEBUG title_tokens: {title_tokens}")
-    print(f"  DEBUG full_tokens intersection: {full_tokens.intersection(MOVEMENT_SET)}")
-    print(f"  DEBUG summary length: {len(summary)}")
 
     return score  # raw, uncapped — ceiling computed dynamically per run
 
@@ -310,13 +396,17 @@ def main():
     max_score = compute_max_score(boosted_companies, boosted_keywords)
     print(f"Dynamic score ceiling this run: {max_score}")
 
+    # Build feeds at runtime so current year is always fresh
+    rss_feeds = build_rss_feeds()
+    print(f"Active feeds this run: {len(rss_feeds)}")
+
     candidates = []
     stats = {"total": 0, "old": 0, "no_keyword": 0, "seen": 0}
 
     # Compute once — every article evaluated against the same cutoff
     cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENCY_HOURS)
 
-    for feed_url in RSS_FEEDS:
+    for feed_url in rss_feeds:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries:
             stats["total"] += 1
