@@ -52,6 +52,11 @@ KNOWN_COMPANIES = [
     "Tesla", "Apple", "Sony Honda Mobility", "Lightwheel"
 ]
 
+BLOCKED_DOMAINS = {
+    "aol.com", "msn.com", "yahoo.com", 
+    "flipboard.com", "newsnow.co.uk"
+}
+
 # ─── RSS Feed Generation ──────────────────────────────────────────────────────
 
 def build_rss_feeds():
@@ -447,6 +452,9 @@ def main():
             link   = entry.link
             domain = get_domain(link)
 
+            if domain in BLOCKED_DOMAINS:
+                stats["blocked"] += 1
+                continue
             if not is_recent(entry, cutoff):
                 stats["old"] += 1
                 continue
