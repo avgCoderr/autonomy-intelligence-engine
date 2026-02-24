@@ -307,6 +307,39 @@ def score_article(title, summary, domain, conn, boosted_companies, boosted_keywo
 
     return score  # raw, uncapped — ceiling computed dynamically per run
 
+def cluster_candidates(candidates):
+    """
+    One winner per known company — highest scoring article per company entity.
+    Articles with no known company (topic feeds) each get their own slot.
+    """
+    seen_companies = {}
+    no_company = []
+
+    for candidate in candidates:
+        score, title, link, bucket, category, domain = candidate
+        full_text = title.lower()
+
+        primary = None
+
+        tokens = set(re.findall(r'\w+', full_text))
+        for company in COMPANY_SET:
+            if company in tokens:
+                primary = company
+                break
+
+        if not primary and COMPANY_PHRASE_RE:
+            match = COMPANY_PHRASE_RE.search(full_text)
+            if match:
+                primary = match.group(0).lower()
+
+        if primary:
+            if primary not in seen_companies or score > seen_companies[primary][0]:
+                seen_companies[primary] = candidate
+        else:
+            no_company.append(candidate)
+
+    return list(seen_companies.values()) + no_company
+
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -436,8 +469,11 @@ def main():
     print(f"  Candidates         : {len(candidates)}")
 
     candidates.sort(key=lambda x: x[0], reverse=True)
+    candidates = cluster_candidates(candidates)  # one article per company
     top = candidates[:MAX_ARTICLES]
 
+    print(f"  After clustering   : {len(candidates)}")
+    
     print(f"\nPUSHING TOP {len(top)} TO NOTION  (ceiling: {max_score})")
     for score, title, link, bucket, category, domain in top:
         send_to_notion(title, link, bucket, category, score, domain)
