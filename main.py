@@ -167,8 +167,14 @@ def score_article(title, domain, conn, boosted_companies, boosted_keywords):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-def is_recent(entry):
-    return True
+from calendar import timegm
+
+def is_recent(entry, cutoff):
+    parsed = getattr(entry, 'published_parsed', None) or getattr(entry, 'updated_parsed', None)
+    if parsed is None:
+        return False
+    published_utc = datetime.fromtimestamp(timegm(parsed), tz=timezone.utc)
+    return published_utc >= cutoff
 
 def get_domain(url):
     try:
@@ -243,6 +249,8 @@ def main():
     candidates = []
     stats = {"total": 0, "old": 0, "no_keyword": 0, "seen": 0}
 
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENCY_HOURS)
+
     for feed_url in RSS_FEEDS:
         feed = feedparser.parse(feed_url)
         for entry in feed.entries:
@@ -251,7 +259,7 @@ def main():
             link = entry.link
             domain = get_domain(link)
 
-            if not is_recent(entry):
+            if not is_recent(entry, cutoff):
                 stats["old"] += 1
                 continue
             if not contains_movement_keyword(title):
