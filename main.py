@@ -215,6 +215,10 @@ def score_article(title, summary, domain, conn, boosted_companies, boosted_keywo
     source_boost = get_source_boost(conn, domain)
     score += round(source_boost * 3)
 
+    print(f"  DEBUG title_tokens: {title_tokens}")
+    print(f"  DEBUG full_tokens intersection: {full_tokens.intersection(MOVEMENT_SET)}")
+    print(f"  DEBUG summary length: {len(summary)}")
+
     return score  # raw, uncapped — ceiling computed dynamically per run
 
 
